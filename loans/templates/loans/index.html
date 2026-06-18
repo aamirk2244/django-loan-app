@@ -1,0 +1,115 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Askari Bank — Data Verifier</title>
+     <link rel="stylesheet"
+          href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+
+    <link rel="stylesheet"
+          href="{% static 'vendor/datatables/dataTables.bootstrap5.min.css' %}">
+
+    <link rel="stylesheet"
+          href="{% static 'css/app.css' %}">
+    <!-- DataTables (jQuery required) -->
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+      <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center" href="{% url 'index' %}">
+          <img src="https://askaribank.com/gallery/logo.svg" alt="Askari Bank" class="app-logo me-2">
+          <div>
+            <div class="fw-bold">Askari Bank</div>
+            <small class="text-muted d-block">Data Verifier</small>
+          </div>
+        </a>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Django Notification Layer -->
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% else %}info{% endif %} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+
+      <!-- Core App Workspace -->
+      <div class="py-4 text-center mb-4">
+        <h1 class="h3 mb-1">Compare spreadsheets quickly</h1>
+        <p class="text-muted mb-0">Upload a reference file and compare any new file against it — mismatches and missing rows are highlighted.</p>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Actions</h5>
+              <p class="card-text text-muted">Choose an action to perform.</p>
+              <div class="list-group" id="actionList">
+                <button type="button" class="list-group-item list-group-item-action active" data-url="{% url 'panel_compare' %}">Document Comparison</button>
+                <button type="button" class="list-group-item list-group-item-action" data-url="{% url 'panel_kibor' %}">Fetch KIBOR Rate</button>
+                <button type="button" class="list-group-item list-group-item-action" data-url="{% url 'panel_add_yearly_kibor' %}">Add Yearly KIBOR</button>
+              </div>
+              <small class="text-muted d-block mt-2">Select an action to show the related functionality on the right.</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-8" id="dynamicPanel">
+          {% include "loans/partials/compare.html" %}
+        </div>
+      </div>
+    </div>
+
+  <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+
+<script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+
+<script src="{% static 'vendor/datatables/dataTables.min.js' %}"></script>
+
+<script src="{% static 'vendor/datatables/dataTables.bootstrap5.min.js' %}"></script>
+
+<script src="{% static 'js/index.js' %}"></script>
+    <!-- Dynamic AJAX Panel Switcher Script -->
+    <script>
+      $(document).ready(function() {
+        $("#actionList .list-group-item").click(function() {
+          $("#actionList .list-group-item").removeClass("active");
+          $(this).addClass("active");
+
+          var targetUrl = $(this).data("url");
+          $("#dynamicPanel").html('<div class="text-muted text-center p-5">Loading template component...</div>');
+
+          $.get(targetUrl, function(htmlData) {
+            $("#dynamicPanel").html(htmlData);
+          }).fail(function() {
+            $("#dynamicPanel").html('<div class="text-danger text-center p-5">Failed to fetch the required view.</div>');
+          });
+        });
+      });
+    </script>
+
+    <!-- Confirmation modal (Bootstrap) -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">Are you sure?</div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmModalOk">Remove</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

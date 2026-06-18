@@ -1,0 +1,27 @@
+# Virtual Environment
+venv/
+ENV/
+.venv/
+
+# Django local configurations & database
+db.sqlite3
+.env
+
+# Local App Data Folders
+data/
+loans/data/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# IDE files
+.vscode/
+.idea/
+node_modules/
+
+package-lock.json
+package.json

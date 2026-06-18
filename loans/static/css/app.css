@@ -1,0 +1,59 @@
+body{
+    background:#f5f6f8;
+}
+
+.top-bar{
+    background:white;
+    border-bottom:1px solid #ddd;
+    padding:10px;
+}
+
+.header-content{
+    display:flex;
+    align-items:center;
+    gap:20px;
+}
+
+.logo{
+    height:60px;
+}
+
+.page-title{
+    text-align:center;
+    margin-top:50px;
+    margin-bottom:40px;
+}
+
+.page-title h1{
+    font-weight:700;
+}
+
+.card{
+    border:none;
+}
+
+.card-header{
+    font-size:22px;
+    font-weight:600;
+    background:white;
+}
+
+.action-btn{
+    width:100%;
+    border:none;
+    color:white;
+    padding:16px;
+    font-size:18px;
+}
+
+#btnYearlyKibor{
+    color:black;
+}
+
+#dynamicPanel{
+    min-height:700px;
+}
+
+.table-responsive{
+    width:100%;
+}

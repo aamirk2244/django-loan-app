@@ -1,0 +1,104 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Askari Bank — Comparison Results</title>
+    
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/datatables/dataTables.bootstrap5.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+      <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center" href="{% url 'index' %}">
+          <img src="https://askaribank.com/gallery/logo.svg" alt="Askari Bank" class="app-logo me-2">
+          <div>
+            <div class="fw-bold">Askari Bank</div>
+            <small class="text-muted d-block">Data Verifier</small>
+          </div>
+        </a>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="d-flex align-items-center mb-3">
+        <div>
+          <h4 class="mb-0">Comparison Results</h4>
+          <small class="text-muted">Rows with mismatches or missing reference rows are listed below.</small>
+        </div>
+        <div class="ms-auto">
+          <a class="btn btn-secondary me-2" href="{% url 'index' %}">Back</a>
+          {% if csv_ready %}
+            <a class="btn btn-info" href="{% url 'download_results' %}">Download CSV of Issues</a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="d-flex gap-2">
+          <div class="p-2 bg-light rounded">Total keys: <strong>{{ results|length }}</strong></div>
+          <div class="p-2 bg-warning rounded">
+            Issues: <strong>{% if issues_count is not None %}{{ issues_count }}{% else %}0{% endif %}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="resultsTable">
+          <thead class="table-light">
+            <tr>
+              <th>Key</th>
+              <th>Status</th>
+              <th>Column</th>
+              <th>Initial Value</th>
+              <th>New Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in results %}
+              {% if r.status == 'missing_in_initial' %}
+                <tr>
+                  <td>{{ r.key }}</td>
+                  <td><span class="badge bg-warning text-dark">Missing</span></td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+              {% elif r.status == 'mismatch' %}
+                {% for m in r.mismatches %}
+                  <tr>
+                    <td>{{ r.key }}</td>
+                    <td><span class="badge bg-danger">Mismatch</span></td>
+                    <td>{{ m.column }}</td>
+                    <td>{{ m.initial }}</td>
+                    <td>{{ m.new }}</td>
+                  </tr>
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+    <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'vendor/datatables/dataTables.min.js' %}"></script>
+    <script src="{% static 'vendor/datatables/dataTables.bootstrap5.min.js' %}"></script>
+    
+    <script>
+      $(document).ready(function() {
+        if ($.fn.DataTable) {
+          $('#resultsTable').DataTable({
+            "pageLength": 25,
+            "ordering": true,
+            "info": true
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

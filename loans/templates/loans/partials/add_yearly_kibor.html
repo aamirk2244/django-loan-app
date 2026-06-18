@@ -1,0 +1,10 @@
+<div class="card">
+  <div class="card-body">
+    <h5 class="card-title">Add Yearly KIBOR</h5>
+    <p class="card-text text-muted">Add three KIBOR columns to the current comparison file and populate values based on Disb_Date and scraped KIBOR summary.</p>
+    <div class="mb-3">
+      <button id="addYearlyKiborBtn" class="btn btn-primary" {% if not new_exists %}disabled{% endif %}>Add Yearly KIBOR</button>
+    </div>
+    <div id="addYearlyResult" class="mt-2 text-muted">Click the button to add and populate KIBOR columns on the uploaded comparison file.</div>
+  </div>
+</div>

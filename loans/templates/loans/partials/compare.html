@@ -1,0 +1,68 @@
+<div class="card">
+  <div class="card-body">
+    <h5 class="card-title">Compare New File</h5>
+    <p class="card-text text-muted">Upload a file to compare against the stored reference. The comparison runs immediately after upload.</p>
+
+    <form action="{% url 'upload_new' %}" method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="input-group mb-3">
+        <input class="form-control" type="file" name="file" accept=".csv,.xls,.xlsx" required>
+        <button class="btn btn-success" type="submit">Upload & Compare</button>
+      </div>
+    </form>
+
+    <div>
+      {% if new_exists %}
+        <div class="d-flex align-items-center mb-2">
+          <div>
+            <div><strong>{{ new_filename }}</strong></div>
+            {% if new_mtime %}
+              <small class="text-muted">Uploaded: {{ new_mtime }}</small>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="mt-2 text-muted">No comparison file uploaded yet.</div>
+      {% endif %}
+
+      <form action="{% url 'compare_files' %}" method="get" class="d-inline">
+        <button class="btn btn-outline-secondary" type="submit" {% if not initial_exists or not new_exists %}disabled{% endif %}>Compare Existing File</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-body">
+    <h5 class="card-title">Initial Reference</h5>
+    <p class="card-text text-muted">Upload a reference file that will be used for all future comparisons until replaced.</p>
+
+    <form action="{% url 'upload_initial' %}" method="post" enctype="multipart/form-data" class="mb-3">
+      {% csrf_token %}
+      <div class="input-group">
+        <input class="form-control" type="file" name="file" accept=".csv,.xls,.xlsx" required>
+        <button class="btn btn-primary" type="submit">Upload</button>
+      </div>
+    </form>
+
+    {% if initial_exists %}
+      <div class="d-flex align-items-center">
+        <div>
+          <div><strong>{{ initial_filename }}</strong></div>
+          {% if initial_mtime %}
+            <small class="text-muted">Uploaded: {{ initial_mtime }}</small>
+          {% endif %}
+        </div>
+        <div class="ms-auto">
+          <a class="btn btn-sm btn-outline-secondary me-2" href="{% url 'view_initial' %}">Download {{ initial_filename }}</a>
+          <form action="{% url 'remove_initial' %}" method="post" class="d-inline">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-danger" type="submit">Remove</button>
+          </form>
+        </div>
+      </div>
+    {% else %}
+      <div class="mt-2 text-muted">No initial reference uploaded yet.</div>
+    {% endif %}
+  </div>
+</div>
