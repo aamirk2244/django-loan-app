@@ -1,11 +1,12 @@
 import os
+import glob
 import pandas as pd
 #from settings import ALLOWED_EXTENSIONS, UPLOAD_DIR, INITIAL_DIR, MASTER_DIR
 
 ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
 UPLOAD_DIR = "data/uploads"
 INITIAL_DIR = "data/initial"
-MASTER_DIR = "data/master"
+MASTER_DIR = "data/master-kibor"
 
 # 1. Validation and Directory setup
 def allowed_file(filename):
@@ -34,11 +35,20 @@ def find_key_column(df):
 
 # 3. Data Processing & Loading
 def load_dataframe(path):
+    # If the path is a directory, find the latest file inside it
+    if os.path.isdir(path):
+        # Find all .xlsx and .csv files
+        files = glob.glob(os.path.join(path, "*.xlsx")) + glob.glob(os.path.join(path, "*.csv"))
+        if not files:
+            raise FileNotFoundError(f"No Excel or CSV files found in directory: {path}")
+        # Target the latest file based on modification time
+        path = max(files, key=os.path.getmtime)
+
+    # Load the file based on its extension
     if path.lower().endswith('.csv'):
         return pd.read_csv(path, dtype=str)
     else:
         return pd.read_excel(path, dtype=str, engine='openpyxl')
-
 
 # 4. Sheet Comparison Engine Matrix
 def compare_data(initial_df, new_df):
@@ -93,13 +103,75 @@ def compare_data(initial_df, new_df):
 
     return results
 
+def merge_oas_amounts_to_master(master_df, new_df):
+    """
+    Finds matching entries via 'Customer Identification No', extracts OAS columns 
+    (M1, M2, M3), and merges them into the master dataframe.
+    """
+    ID_COL = 'Customer Identification No'
+    OAS_COLS = ['OAS Amount M1', 'OAS Amount M2', 'OAS Amount M3']
+    
+    # 1. Validate that the identifier column exists in both dataframes
+    if ID_COL not in master_df.columns:
+        raise ValueError(f"Master file is missing the required identifier column: '{ID_COL}'")
+    if ID_COL not in new_df.columns:
+        raise ValueError(f"New data file is missing the required identifier column: '{ID_COL}'")
+        
+    # 2. Validate that at least one of the target OAS columns exists in the new file
+    available_oas_cols = [col for col in OAS_COLS if col in new_df.columns]
+    if not available_oas_cols:
+        raise ValueError(f"New file does not contain any of the expected OAS columns: {OAS_COLS}")
 
+    # 3. Create clean working copies and enforce string/stripped keys for perfect matching
+    master = master_df.copy()
+    new = new_df.copy()
+    
+    master[ID_COL] = master[ID_COL].astype(str).str.strip()
+    new[ID_COL] = new[ID_COL].astype(str).str.strip()
+    
+    # 4. Filter the new dataframe to keep only the ID and the available OAS columns
+    # Dropping duplicates ensures we don't accidentally bloat the master dataframe on merge
+    new_subset = new[[ID_COL] + available_oas_cols].drop_duplicates(subset=[ID_COL])
+    
+    # 5. Initialize the OAS columns in master if they don't already exist
+    for col in available_oas_cols:
+        if col not in master.columns:
+            master[col] = pd.NA
+
+    # 6. Set index to perform an in-place update for existing rows
+    master.set_index(ID_COL, inplace=True)
+    new_subset.set_index(ID_COL, inplace=True)
+    
+    # Update master with values from the new sheet where the IDs match
+    master.update(new_subset)
+    
+    # 7. (Optional) If there are new IDs in the update file that don't exist in master, 
+    # you can combine them. If you ONLY want to update existing master entries, skip this step.
+    missing_ids = new_subset.index.difference(master.index)
+    if not missing_ids.empty:
+        new_entries = new_subset.loc[missing_ids]
+        master = pd.concat([master, new_entries], axis=0)
+
+    # Reset index back to a standard column before returning
+    return master.reset_index()
 # 5. File Discovery Helpers
 def find_latest_upload():
     candidates = []
     if os.path.isdir(UPLOAD_DIR):
         for f in os.listdir(UPLOAD_DIR):
             p = os.path.join(UPLOAD_DIR, f)
+            if os.path.isfile(p):
+                candidates.append(p)
+    if not candidates:
+        return None
+    return max(candidates, key=os.path.getmtime)
+
+
+def find_latest_upload_with_args(directory):
+    candidates = []
+    if os.path.isdir(directory):
+        for f in os.listdir(directory):
+            p = os.path.join(directory, f)
             if os.path.isfile(p):
                 candidates.append(p)
     if not candidates:

@@ -6,13 +6,19 @@ urlpatterns = [
     path('', views.index, name='index'),
 
     # AJAX Fragments Engine Endpoints 
+    
+    path('panel/view-master/', views.panel_view_master, name='panel_view_master'),
     path('panel/compare/', views.panel_compare, name='panel_compare'),
     path('panel/kibor/', views.panel_kibor, name='panel_kibor'),
     path('panel/add-yearly-kibor/', views.panel_add_yearly_kibor, name='panel_add_yearly_kibor'),
+    path('panel/fetch-obi/', views.panel_fetch_obi, name='panel_fetch_obi'),
+
+
 
     # Core Action Routes
     path('view-initial/', views.view_initial, name='view_initial'),
     path('remove-initial/', views.remove_initial, name='remove_initial'),
+    path('remove-file/', views.remove_file, name='remove_file'),
     path('upload-initial/', views.upload_initial, name='upload_initial'),
     path('upload-new/', views.upload_new, name='upload_new'),
     path('compare/', views.compare_files, name='compare_files'),

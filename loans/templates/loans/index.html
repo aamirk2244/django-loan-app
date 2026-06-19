@@ -55,6 +55,14 @@
                 <button type="button" class="list-group-item list-group-item-action active" data-url="{% url 'panel_compare' %}">Document Comparison</button>
                 <button type="button" class="list-group-item list-group-item-action" data-url="{% url 'panel_kibor' %}">Fetch KIBOR Rate</button>
                 <button type="button" class="list-group-item list-group-item-action" data-url="{% url 'panel_add_yearly_kibor' %}">Add Yearly KIBOR</button>
+                <form action="{% url 'panel_fetch_obi' %}" method="POST" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="list-group-item list-group-item-action">
+                        Fetch & Add OBI Rate
+                    </button>
+                </form>
+                <a href="{% url 'panel_view_master' %}" class="list-group-item list-group-item-action">View Calculated File</a>       
+
               </div>
               <small class="text-muted d-block mt-2">Select an action to show the related functionality on the right.</small>
             </div>

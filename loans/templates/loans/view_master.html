@@ -1,0 +1,98 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Askari Bank — Processed File</title>
+    
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/datatables/dataTables.bootstrap5.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+      <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center" href="{% url 'index' %}">
+          <img src="https://askaribank.com/gallery/logo.svg" alt="Askari Bank" class="app-logo me-2">
+          <div>
+            <div class="fw-bold">Askari Bank</div>
+            <small class="text-muted d-block">Data Verifier</small>
+          </div>
+        </a>
+      </div>
+    </nav>
+
+   <div class="container">
+      <div class="d-flex align-items-center mb-3">
+        <div>
+          <h4 class="mb-0">Processed File View</h4>
+          <small class="text-muted">Dynamically loaded Excel dataframe contents</small>
+        </div>
+        <div class="ms-auto">
+          <a class="btn btn-secondary me-2" href="{% url 'index' %}">Back</a>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="d-flex gap-2">
+          <div class="p-2 bg-light rounded">Total Rows: <strong>{{ results|length }}</strong></div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="masterExcelTable">
+          <thead class="table-light">
+            <tr>
+              {% if results %}
+                {% for column_name in results.0.keys %}
+                  <th>{{ column_name }}</th>
+                {% endfor %}
+              {% else %}
+                <th>No Data Available</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in results %}
+              <tr>
+                {% for value in row.values %}
+                  <td>
+                    {% if value is not None %}
+                      {{ value }}
+                    {% else %}
+                      <span class="text-muted">-</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% empty %}
+              <tr>
+                <td class="text-center text-muted p-4">No records found in the uploaded file.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+    <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'vendor/datatables/dataTables.min.js' %}"></script>
+    <script src="{% static 'vendor/datatables/dataTables.bootstrap5.min.js' %}"></script>
+    
+    <script>
+      $(document).ready(function() {
+        // FIX: Changed selector from #resultsTable to match your actual HTML table ID #masterExcelTable
+        if ($.fn.DataTable && !$.fn.DataTable.isDataTable('#masterExcelTable')) {
+          $('#masterExcelTable').DataTable({
+            "pageLength": 10,
+            "ordering": true,
+            "info": true,
+            "searching": true
+          });
+        }
+      });
+    </script>
+  </body>
+</html>
