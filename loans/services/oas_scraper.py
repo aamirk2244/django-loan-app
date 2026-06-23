@@ -24,6 +24,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.conf import settings
+from loans import globals as g
 
 
 STATEMENTS_DIR = Path("data/sample-statements")
@@ -77,20 +78,16 @@ def extract_balances(text: str) -> dict:
     """
     Walk lines and pick the BALANCE column value (line immediately after each
     PRINCIPAL REPAYMENT row) for JAN, FEB, MAR.
-
-    Business rules:
-      - Multiple entries in a month → use the last one.
-      - Last entry is 0 AND earlier non-zero entries exist → use last non-zero.
-      - Month entirely absent → 0.0.
-      - JAN absent → fall back to Opening Balance value.
     """
     lines = text.splitlines()
+    # s_months = g.REPORT_PERIOD["months"]
+    m1, m2, m3 = g.REPORT_PERIOD["months"][0].upper(), g.REPORT_PERIOD["months"][1].upper(), g.REPORT_PERIOD["months"][2].upper()
     month_balance: dict[str, list[float]] = {
-        "JAN": [], "FEB": [], "MAR": []
+         m1: [], m2: [], m3: []
     }
 
     for i, line in enumerate(lines):
-        m = re.match(r"\d{2}-(JAN|FEB|MAR)-\d{2}\s+PRINCIPAL REPAYMENT", line.strip())
+        m = re.match(rf"\d{{2}}-({m1}|{m2}|{m3})-\d{{2}}\s+PRINCIPAL REPAYMENT", line.strip())
         if m:
             month = m.group(1)
             if i + 1 < len(lines):
@@ -108,15 +105,16 @@ def extract_balances(text: str) -> dict:
             return non_zero[-1] if non_zero else 0.0
         return last
 
-    jan = pick(month_balance["JAN"])
-    feb = pick(month_balance["FEB"]) or 0.0
-    mar = pick(month_balance["MAR"]) or 0.0
+    first_month = pick(month_balance[m1])
+    second_month = pick(month_balance[m2]) or 0.0
+    third_month = pick(month_balance[m3]) or 0.0
 
-    if jan is None:
+    if first_month is None:
         ob = re.search(r"Opening Balance\s*\*\*\s*(-?[\d,]+\.\d{2})", text)
-        jan = float(ob.group(1).replace(",", "")) if ob else 0.0
+        first_month = float(ob.group(1).replace(",", "")) if ob else 0.0
 
-    return {"jan": jan, "feb": feb, "mar": mar}
+    # breakpoint()
+    return {m1.lower(): first_month, m2.lower(): second_month, m3.lower(): third_month}
 
 
 def extract_statement_data(pdf_path: Path) -> dict:
@@ -177,12 +175,14 @@ def save_to_excel(records: list[dict], output_path: Path):
         "Account Number",
         "Statement End Date",
         "Source File",
-        "Jan Balance (PKR)",
-        "Feb Balance (PKR)",
-        "Mar Balance (PKR)",
+        "OAS M1",
+        "OAS M2",
+        "OAS M3",
     ]
     col_widths = [24, 20, 36, 22, 22, 22]
-
+    
+    m1, m2, m3 = g.REPORT_PERIOD["months"][0].lower(), g.REPORT_PERIOD["months"][1].lower(), g.REPORT_PERIOD["months"][2].lower()
+   
     for col, (h, w) in enumerate(zip(headers, col_widths), start=1):
         c = ws.cell(row=1, column=col, value=h)
         c.font = header_font
@@ -199,9 +199,9 @@ def save_to_excel(records: list[dict], output_path: Path):
             rec["account_number"],
             end_date,
             rec["filename"],
-            rec["jan"],
-            rec["feb"],
-            rec["mar"],
+            rec[m1],
+            rec[m2],
+            rec[m3],
         ]
         for c_idx, val in enumerate(row_vals, start=1):
             c = ws.cell(row=r_idx, column=c_idx, value=val)
@@ -234,16 +234,8 @@ def merge_oas_amounts_to_master(master_df: pd.DataFrame, new_df: pd.DataFrame) -
     if NEW_ID_COL not in new_df.columns:
         raise ValueError(f"OAS file is missing identifier column: '{NEW_ID_COL}'")
 
-    # Dynamically detect month balance columns in new_df
-    balance_pattern = re.compile(
-        r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
-        r"jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
-        re.IGNORECASE,
-    )
-    oas_cols = [col for col in new_df.columns if balance_pattern.search(col)]
-
-    if not oas_cols:
-        raise ValueError(f"OAS file has no recognisable month columns. Found: {list(new_df.columns)}")
+    # get month balance columns in new_df
+    oas_cols = new_df.columns[-3:].tolist()
 
     # Keep only account number + balance columns from new_df
     new_subset = (

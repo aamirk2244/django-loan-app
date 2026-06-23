@@ -11,11 +11,12 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 from typing import List
+from loans import globals as g
 
 BASE_URL = "https://www.sbp.org.pk/ecodata/kibor_index.asp"
 SAVE_DIR = Path("data/kibor_files")
-START_YEAR = 2025
-START_MONTH = 1
+# START_YEAR = 2025
+# START_MONTH = 1
 HEADLESS = True
 PAGE_WAIT = 3
 
@@ -29,10 +30,10 @@ def month_name(month_num: int) -> str:
 
 
 def months_to_scrape():
-    today = date.today()
+    today = {"year": g.REPORT_PERIOD["year"], "month": g.MONTH_MAP[g.REPORT_PERIOD["months"][-1]]}
     result = []
-    year, month = START_YEAR, START_MONTH
-    while (year, month) <= (today.year, today.month):
+    year, month =  g.REPORT_PERIOD["year"] - 1, g.MONTH_MAP[g.REPORT_PERIOD["months"][0]]
+    while (year, month) <= (today["year"], today["month"]):
         result.append((year, month))
         month += 1
         if month > 12:
@@ -51,15 +52,27 @@ def log(msg: str) -> None:
 
 def file_for_month_exists(year: int, month: int):
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
-    mon_abbr = month_name(month).lower()
-    mon_full = datetime(2000, month, 1).strftime("%B").lower()
-    y = str(year)
-    pats = [y, f"{year}-{month}", f"{year}-{month:02d}", mon_abbr, mon_full, f"kibor-{year}-{month}"]
+
+    mon_abbr = month_name(month).lower()   # feb
+    year2 = str(year)[-2:]                 # 2026 -> 26
+
+    # Matches:
+    # Kibor-28-Feb-25.pdf
+    # Kibor-31-Jan-26.pdf
+    pattern = re.compile(
+        rf"^kibor-\d{{1,2}}-{mon_abbr}-{year2}\.pdf$",
+        re.IGNORECASE,
+    )
+
+    log(f"    ✓ Looking for pattern → {pattern.pattern}")
+
     for p in SAVE_DIR.glob("*.pdf"):
         nm = p.name.lower()
-        for pat in pats:
-            if pat in nm:
-                return p.name
+
+        if pattern.match(nm):
+            log(f"    ✓ Found existing file → {p.name}")
+            return p.name
+
     return None
 
 
@@ -166,6 +179,7 @@ async def _scrape_async() -> None:
 def _run_in_thread() -> None:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    
     try:
         loop.run_until_complete(_scrape_async())
         _scraper_state["error"] = None
@@ -173,8 +187,9 @@ def _run_in_thread() -> None:
         _scraper_state["error"] = str(e)
         log(f"Scraper error: {e}")
     finally:
+        # breakpoint()
         try:
-            def _summary_is_current(csv_path: Path = Path("static/data/kibor_summary.csv")) -> bool:
+            def _summary_is_current(csv_path: Path = Path("data/kibor_summary/kibor_summary.csv")) -> bool:
                 try:
                     import pandas as _pd
                     csv_p = Path(csv_path)
@@ -183,6 +198,7 @@ def _run_in_thread() -> None:
                     df = _pd.read_csv(csv_p)
                     files_in_dir = {p.name for p in SAVE_DIR.glob("*.pdf")}
                     files_in_csv = set(df['filename'].dropna().astype(str).unique()) if 'filename' in df.columns else set()
+                    
                     return files_in_dir.issubset(files_in_csv)
                 except Exception:
                     return False
@@ -203,6 +219,7 @@ def _run_in_thread() -> None:
                 log(f"Post-download extraction error: {e}")
 
         finally:
+            # breakpoint()
             _scraper_state["running"] = False
 
 
@@ -212,8 +229,9 @@ def start_scrape() -> dict:
     _scraper_state["running"] = True
     _scraper_state["log"] = []
     _scraper_state["error"] = None
-    thread = threading.Thread(target=_run_in_thread, daemon=True)
-    thread.start()
+    _run_in_thread()
+    # thread = threading.Thread(target=_run_in_thread, daemon=True)
+    # thread.start()
     return {"status": "started"}
 
 

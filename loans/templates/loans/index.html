@@ -5,15 +5,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Askari Bank — Data Verifier</title>
-     <link rel="stylesheet"
-          href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
-
-    <link rel="stylesheet"
-          href="{% static 'vendor/datatables/dataTables.bootstrap5.min.css' %}">
-
-    <link rel="stylesheet"
-          href="{% static 'css/app.css' %}">
-    <!-- DataTables (jQuery required) -->
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/datatables/dataTables.bootstrap5.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
   </head>
   <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
@@ -29,7 +23,6 @@
     </nav>
 
     <div class="container">
-      <!-- Django Notification Layer -->
       {% if messages %}
         {% for message in messages %}
           <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% else %}info{% endif %} alert-dismissible fade show" role="alert">
@@ -39,85 +32,251 @@
         {% endfor %}
       {% endif %}
 
-      <!-- Core App Workspace -->
-      <div class="py-4 text-center mb-4">
-        <h1 class="h3 mb-1">Compare spreadsheets quickly</h1>
-        <p class="text-muted mb-0">Upload a reference file and compare any new file against it — mismatches and missing rows are highlighted.</p>
-      </div>
+      <div class="row g-4 justify-content-center">
+        <div class="col-md-8">
 
-      <div class="row g-4">
-        <div class="col-md-4">
-          <div class="card">
-            <div class="card-body">
-              <h5 class="card-title">Actions</h5>
-              <p class="card-text text-muted">Choose an action to perform.</p>
-              <div class="list-group" id="actionList">
-                <button type="button" class="list-group-item list-group-item-action active" data-url="{% url 'panel_compare' %}">Document Comparison</button>
-                <button type="button" class="list-group-item list-group-item-action" data-url="{% url 'panel_kibor' %}">Fetch KIBOR Rate</button>
-                <button type="button" class="list-group-item list-group-item-action" data-url="{% url 'panel_add_yearly_kibor' %}">Add Yearly KIBOR</button>
-                <form action="{% url 'panel_fetch_obi' %}" method="POST" class="d-inline">
-                    {% csrf_token %}
-                    <button type="submit" class="list-group-item list-group-item-action">
-                        Fetch & Add OBI Rate
-                    </button>
-                </form>
-                <a href="{% url 'panel_view_master' %}" class="list-group-item list-group-item-action">View Calculated File</a>       
-
-              </div>
-              <small class="text-muted d-block mt-2">Select an action to show the related functionality on the right.</small>
+          <!-- 1. Master File -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-bold text-secondary py-3">
+              📁 1. Master File Workspace Management
+            </div>
+            <div class="card-body p-4">
+              {% include "loans/partials/compare.html" %}
             </div>
           </div>
-        </div>
 
-        <div class="col-md-8" id="dynamicPanel">
-          {% include "loans/partials/compare.html" %}
+          <!-- 2. Period Selector -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-bold text-secondary py-3">
+              📅 2. Select Processing Period
+            </div>
+            <div class="card-body p-4">
+  <div class="row g-3" style="justify-content: space-around;">
+
+    <div class="col-md-4 d-flex flex-column">
+      <label class="form-label text-muted small fw-semibold text-uppercase mb-1">
+        Year
+      </label>
+      <select class="form-select" id="qs-year"></select>
+    </div>
+
+            <div class="col-md-5 d-flex flex-column">
+              <label class="form-label text-muted small fw-semibold text-uppercase mb-1">
+                Quarter
+              </label>
+              <select class="form-select" id="qs-quarter"></select>
+              <small class="text-muted mt-1" id="qs-months-hint"></small>
+            </div>
+
+            <div class="col-md-3" style="display: flex; align-items: center; justify-content: center;">
+              <span
+                class="badge bg-success-subtle text-success fw-semibold px-3 py-2 d-inline-flex align-items-center gap-1"
+                id="qs-badge">
+                ✓ <span id="qs-badge-text">Auto-selected</span>
+              </span>
+            </div>
+            
+
+          </div>
+        </div>
+          </div>
+
+          <!-- 3. Pipeline -->
+          <div class="card border-primary shadow-sm mb-4">
+            <div class="card-header bg-primary text-white fw-bold py-3">
+              🚀 3. Run Engine Pipeline Sequences
+            </div>
+            <div class="card-body p-4 text-center">
+              <p class="card-text text-muted mb-4 text-start">
+                Ensure your target spreadsheet is successfully uploaded or present above. Triggering this execution matrix will automatically run structure validation, KIBOR processing, benchmark rules, and OBI index alignments synchronously.
+              </p>
+
+              <button type="button" id="runPipelineBtn" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm py-2">
+                ⚡ Execute Processing Pipeline
+              </button>
+
+              <div id="pipelineStatus" class="mt-4 text-start d-none">
+                <hr>
+                <div class="d-flex align-items-center mb-2">
+                  <div class="spinner-border spinner-border-sm text-primary me-2" role="status" id="pipelineSpinner"></div>
+                  <span class="fw-bold small text-dark" id="pipelineStepText">Initializing execution queue...</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                  <div id="pipelineProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <!-- Shown only after pipeline completes -->
+              <div id="viewMasterBtn" class="d-none mt-3">
+                <a href="{% url 'panel_view_master' %}" class="btn btn-success btn-lg w-100 fw-bold py-2">
+                  📊 View Calculated File
+                </a>
+              </div>
+
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
 
-  <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+    <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+    <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'vendor/datatables/dataTables.min.js' %}"></script>
+    <script src="{% static 'vendor/datatables/dataTables.bootstrap5.min.js' %}"></script>
+    <script src="{% static 'js/index.js' %}"></script>
 
-<script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
-
-<script src="{% static 'vendor/datatables/dataTables.min.js' %}"></script>
-
-<script src="{% static 'vendor/datatables/dataTables.bootstrap5.min.js' %}"></script>
-
-<script src="{% static 'js/index.js' %}"></script>
-    <!-- Dynamic AJAX Panel Switcher Script -->
     <script>
-      $(document).ready(function() {
-        $("#actionList .list-group-item").click(function() {
-          $("#actionList .list-group-item").removeClass("active");
-          $(this).addClass("active");
+      $(document).ready(function () {
 
-          var targetUrl = $(this).data("url");
-          $("#dynamicPanel").html('<div class="text-muted text-center p-5">Loading template component...</div>');
+        const csrfToken = "{{ csrf_token }}";
 
-          $.get(targetUrl, function(htmlData) {
-            $("#dynamicPanel").html(htmlData);
-          }).fail(function() {
-            $("#dynamicPanel").html('<div class="text-danger text-center p-5">Failed to fetch the required view.</div>');
+        // ── Quarter / Year Selector ──────────────────────────────────────────
+        const QUARTERS = {
+          Q1: { label: 'Q1 — Jan, Feb, Mar', months: 'January · February · March',      endMonth: 3  },
+          Q2: { label: 'Q2 — Apr, May, Jun', months: 'April · May · June',              endMonth: 6  },
+          Q3: { label: 'Q3 — Jul, Aug, Sep', months: 'July · August · September',       endMonth: 9  },
+          Q4: { label: 'Q4 — Oct, Nov, Dec', months: 'October · November · December',   endMonth: 12 },
+        };
+
+        // Values pre-set by Django from session (or auto-detected default)
+        const SESSION_YEAR    = "{{ selected_year }}";
+        const SESSION_QUARTER = "{{ selected_quarter }}";
+
+        const now      = new Date();
+        const curYear  = now.getFullYear();
+        const curMonth = now.getMonth() + 1;
+
+        const $yearSel    = $("#qs-year");
+        const $quarterSel = $("#qs-quarter");
+
+        // Populate year dropdown
+        for (let y = curYear; y >= curYear - 2; y--) {
+          $yearSel.append(`<option value="${y}">${y}</option>`);
+        }
+        $yearSel.val(SESSION_YEAR || curYear);
+
+        // Populate quarter dropdown based on selected year
+        function populateQuarters(selectedYear) {
+          $quarterSel.empty();
+          Object.entries(QUARTERS).forEach(([val, q]) => {
+            const isCurrentYear = parseInt(selectedYear) === curYear;
+            const incomplete    = isCurrentYear && curMonth <= q.endMonth;
+            $quarterSel.append(
+              `<option value="${val}" ${incomplete ? 'disabled' : ''}>
+                ${q.label}${incomplete ? ' (incomplete)' : ''}
+              </option>`
+            );
           });
+          // Set from session value, fallback to first enabled
+          if (SESSION_QUARTER && !$quarterSel.find(`option[value="${SESSION_QUARTER}"]`).prop('disabled')) {
+            $quarterSel.val(SESSION_QUARTER);
+          } else {
+            $quarterSel.find('option:not([disabled])').first().prop('selected', true);
+          }
+          updateHint();
+        }
+
+        function updateHint() {
+          const q = QUARTERS[$quarterSel.val()];
+          $("#qs-months-hint").text(q ? q.months : '');
+        }
+
+        function savePeriodToSession() {
+          const year    = $yearSel.val();
+          const quarter = $quarterSel.val();
+          if (!year || !quarter) return;
+          $.ajax({
+            url: "{% url 'set_period' %}",
+            type: "POST",
+            contentType: "application/json",
+            headers: { "X-CSRFToken": csrfToken },
+            data: JSON.stringify({ year, quarter }),
+          });
+        }
+
+        $yearSel.on("change", function () {
+          populateQuarters($(this).val());
+          $("#qs-badge-text").text("Updated");
+          savePeriodToSession();
         });
+
+        $quarterSel.on("change", function () {
+          updateHint();
+          $("#qs-badge-text").text("Updated");
+          savePeriodToSession();
+        });
+
+        // Init
+        populateQuarters($yearSel.val());
+
+        // ── Pipeline ─────────────────────────────────────────────────────────
+        const steps = [
+          { name: "Step 1/6: Fetching KIBOR from SBP...",        url: "{% url 'fetch_kibor' %}",          type: "POST" },
+          { name: "Step 2/6: Processing and merging KIBOR...",    url: "{% url 'fetch_yearly_kibor' %}",   type: "GET"  },
+          { name: "Step 3/6: Processing yearly KIBOR...",         url: "{% url 'panel_add_yearly_kibor' %}", type: "GET" },
+          { name: "Step 4/6: Finding OBI rates...",               url: "{% url 'panel_fetch_obi' %}",      type: "POST" },
+          { name: "Step 5/6: Processing subsidy claim...",        url: "{% url 'add_subsidy_claim' %}",    type: "POST" },
+        ];
+
+        $("#runPipelineBtn").click(function () {
+          savePeriodToSession();  // ensure period is saved before pipeline starts
+          const $btn         = $(this);
+          const $statusDiv   = $("#pipelineStatus");
+          const $stepText    = $("#pipelineStepText");
+          const $progressBar = $("#pipelineProgressBar");
+          const $spinner     = $("#pipelineSpinner");
+          const $viewBtn     = $("#viewMasterBtn");
+
+          $btn.prop("disabled", true).text("Pipeline Active...");
+          $viewBtn.addClass("d-none");
+          $statusDiv.removeClass("d-none");
+          $spinner.removeClass("d-none");
+          $progressBar
+            .css("width", "0%")
+            .addClass("progress-bar-animated bg-primary")
+            .removeClass("bg-success bg-danger");
+
+          let currentStep = 0;
+
+          function executeNextStep() {
+            if (currentStep >= steps.length) {
+              // ── Pipeline complete ──
+              $stepText.text("✅ Pipeline complete!");
+              $progressBar.css("width", "100%").removeClass("progress-bar-animated").addClass("bg-success");
+              $spinner.addClass("d-none");
+              $btn.prop("disabled", false).text("⚡ Execute Processing Pipeline");
+              $viewBtn.removeClass("d-none");   // reveal View Calculated File button
+              return;
+            }
+
+            const step    = steps[currentStep];
+            const percent = Math.round((currentStep / steps.length) * 100);
+            $stepText.text(step.name);
+            $progressBar.css("width", percent + "%");
+
+            $.ajax({
+              url:     step.url,
+              type:    step.type,
+              headers: step.type === "POST" ? { "X-CSRFToken": csrfToken } : {},
+            })
+            .done(function () {
+              currentStep++;
+              executeNextStep();
+            })
+            .fail(function () {
+              $stepText.text("❌ Pipeline stopped: error at — " + step.name);
+              $progressBar.removeClass("progress-bar-animated").addClass("bg-danger");
+              $spinner.addClass("d-none");
+              $btn.prop("disabled", false).text("🔁 Retry Pipeline");
+            });
+          }
+
+          executeNextStep();
+        });
+
       });
     </script>
 
-    <!-- Confirmation modal (Bootstrap) -->
-    <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Confirm</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">Are you sure?</div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-danger" id="confirmModalOk">Remove</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </body>
 </html>

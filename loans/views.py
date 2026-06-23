@@ -10,6 +10,12 @@ from django.http import JsonResponse, FileResponse, Http404
 from django.contrib import messages
 from django.urls import reverse
 from django.conf import settings
+import json
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET
+from datetime import date
+from loans import globals as g
 
 # Importing your existing python business logic services unchanged
 # Change this:
@@ -29,6 +35,8 @@ from .services.document_services import (
     MASTER_DIR
 )
 
+from.services.subsidy_claim import calculate_subsidy_claim
+
 from .services.oas_scraper import (
     STATEMENTS_DIR,
     OAS_AMOUNT_DIR,
@@ -42,6 +50,25 @@ from .services.oas_scraper import (
 )
 
 from .services.scraper_services import start_scrape, scrape_status, list_files
+
+def _get_default_quarter():
+    """Returns (year, quarter) based on the latest completed quarter."""
+    today = date.today()
+    month = today.month
+    year  = today.year
+
+    if month > 9:   quarter = 'Q3'
+    elif month > 6: quarter = 'Q2'
+    elif month > 3: quarter = 'Q1'
+    else:
+        # Jan-Mar: Q4 of previous year not yet complete either,
+        # so go to Q4 of last year
+        quarter = 'Q4'
+        year    = year - 1
+
+    return str(year), quarter
+
+
 
 # Keep your private helper utility function
 def _get_initial_path_and_name():
@@ -94,6 +121,16 @@ def index(request):
             master_mtime = pd.to_datetime(os.path.getmtime(master_path), unit='s')
         except Exception:
             master_mtime = None
+      # --- Period: read from session, fall back to auto-detected default ---
+    default_year, default_quarter = _get_default_quarter()
+    year    = request.session.get('selected_year',    default_year)
+    quarter = request.session.get('selected_quarter', default_quarter)
+
+    # Save back to session if this is a fresh visit (no session values yet)
+    if 'selected_year' not in request.session:
+        request.session['selected_year']    = year
+        request.session['selected_quarter'] = quarter
+
 
     context = {
         'initial_exists': initial_exists,
@@ -104,7 +141,9 @@ def index(request):
         'new_mtime': new_mtime,
         'master_exists': bool(master_path),
         'master_filename': master_filename,
-        'master_mtime': master_mtime
+        'master_mtime': master_mtime,
+        'selected_year': year,
+        'selected_quarter': quarter,
     }
     return render(request, 'loans/index.html', context)
 
@@ -114,8 +153,10 @@ import pandas as pd
 from django.core.cache import cache
 from django.contrib import messages
 from django.shortcuts import render, redirect
+    
 
 def panel_view_master(request):
+    
     master_kibor_path, _ = _get_master_kibor_path_and_name()
 
     
@@ -125,23 +166,7 @@ def panel_view_master(request):
 
     new_path = master_kibor_path
 
-    # Create a unique cache key combining file path properties or timestamps
-    # This ensures if a new file is uploaded, the cache updates automatically
-    cache_key = f"master_df_{hash(new_path)}"
-    
-    # Try fetching previously formatted data from memory cache
-    cached_results = cache.get(cache_key)
-    
-    if cached_results is not None:
-        print("--- Loaded Master File directly from Cache! ---")
-        return render(request, 'loans/view_master.html', {'results': cached_results})
-
-    # Cache miss -> Read from disk
-    try:
-        print("--- Cache Miss: Reading Master Excel File from Disk... ---")
-        # If you still need initial_df for calculations, load it here:
-        # initial_df = load_dataframe(master_kibor_path)
-        
+    try:        
         results_df = load_dataframe(new_path)
         
         # Clean up NaN / Null spaces using numpy safely
@@ -150,9 +175,6 @@ def panel_view_master(request):
         
         # Convert DataFrame to a standard list of serializable row dicts
         results_records = results_df.to_dict(orient='records')
-        
-        # Save records to Django cache for 10 minutes (600 seconds)
-        cache.set(cache_key, results_records, timeout=600)
         
     except Exception as e:
         messages.error(request, f'Error during File Read: {str(e)}')
@@ -187,27 +209,18 @@ def panel_add_yearly_kibor(request):
 # def panel_fetch_obi(request):
 #     master_kibor_path, master_kibor_name = _get_master_kibor_path_and_name()
 #     master_kibor_exists = master_kibor_name is not None
-    
+
+def add_subsidy_claim(request):
+    try:
+        df = calculate_subsidy_claim()
+        messages.success(request, 'Subsidy claim calculations completed successfully.')
+        return redirect('index')
+    except Exception as e:
+        messages.error(request, f'Error during subsidy claim calculation: {str(e)}')
+        return redirect('index')
+
 def panel_fetch_obi(request):
-    """
-    POST /api/process-oas/
 
-    1. Delete all files in data/oas-amount/.
-    2. Parse every *.pdf in data/sample-statements/.
-    3. For each account, keep only the PDF with the latest statement period.
-    4. Write results to data/oas-amount/oas_balances.xlsx.
-
-    Response JSON:
-        {
-            "status": "success",
-            "deleted_files": [...],
-            "total_pdfs_scanned": N,
-            "accounts_written": N,
-            "output_file": "data/oas-amount/oas_balances.xlsx",
-            "summary": [{"account": ..., "source_file": ..., "statement_end": ...}, ...],
-            "errors": [...]
-        }
-    """
     OAS_AMOUNT_DIR.mkdir(parents=True, exist_ok=True)
     STATEMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -354,6 +367,26 @@ def upload_initial(request):
     return redirect('index')
 
 
+@require_POST
+def set_period(request):
+    data = json.loads(request.body)
+
+    quarter_months = {
+        'Q1': ['Jan', 'Feb', 'Mar'],
+        'Q2': ['Apr', 'May', 'Jun'],
+        'Q3': ['Jul', 'Aug', 'Sep'],
+        'Q4': ['Oct', 'Nov', 'Dec'],
+    }
+    g.REPORT_PERIOD['year'] = int(data['year'])
+    g.REPORT_PERIOD['quarter'] = data['quarter']
+    g.REPORT_PERIOD['months'] = quarter_months[data['quarter']]
+
+    return JsonResponse({
+        'status': 'ok',
+        'year': g.REPORT_PERIOD['year'],
+        'quarter': g.REPORT_PERIOD['quarter'],
+        'months': g.REPORT_PERIOD['months'],
+    })
 # 4. Sheet Comparison Operations
 def upload_new(request):
     if request.method == 'POST':
@@ -470,6 +503,23 @@ def fetch_kibor(request):
         except Exception as e:
             return JsonResponse({'ok': False, 'error': str(e)}, status=500)
 
+def get_selected_year_and_months(request):
+
+    selected_year = request.session.get('selected_year', 2026)
+    months_numeric = []
+    
+    if request.session.get('selected_quarter') == 'Q1':
+        months_numeric = [1, 2, 3]
+    elif request.session.get('selected_quarter') == 'Q2':
+        months_numeric = [4, 5, 6]
+    elif request.session.get('selected_quarter') == 'Q3':
+        months_numeric = [7, 8, 9]
+    elif request.session.get('selected_quarter') == 'Q4':
+        months_numeric = [10, 11, 12]
+
+
+    selected_m1, selected_m2, selected_m3 = months_numeric
+    return selected_year, [selected_m1, selected_m2, selected_m3]
 
 # 6. Processing & Computation Engine
 def fetch_yearly_kibor(request):
@@ -485,7 +535,11 @@ def fetch_yearly_kibor(request):
     # Since there's only one, we just take the first item
     target_file = excel_files[0]
 
-    # 2. Ensure destination folder exists
+    # 1. If the directory exists, delete it and everything inside
+    if os.path.exists(MASTER_DIR):
+        shutil.rmtree(MASTER_DIR)
+
+    # 2. Create a fresh, empty instance of the directory
     os.makedirs(MASTER_DIR, exist_ok=True)
     
     # 3. Copy to master directory
@@ -495,9 +549,9 @@ def fetch_yearly_kibor(request):
     # 4. Load into dataframe
     df = pd.read_excel(destination_path, engine="openpyxl")
 
-    df["M1 Kibor Jan 2026"] = None
-    df["M2 Kibor Feb 2026"] = None
-    df["M3 Kibor Mar 2026"] = None
+    df["M1 Kibor"] = None
+    df["M2 Kibor"] = None
+    df["M3 Kibor"] = None
 
     for idx, row in df.iterrows():
         disb_date = pd.to_datetime(row["Disb_Date"], errors="coerce")
@@ -514,14 +568,28 @@ def fetch_yearly_kibor(request):
             revision_month = disb_month
           
         def kibor_cal_for(_month, _year):
-            revision_year = _year
-            if _month <= revision_month:
+            revision_year = int(_year)
+            if int(_month) <= revision_month:
                 revision_year = revision_year - 1
             return get_yearly_kibor(revision_month, revision_year)
         
-        df.at[idx, "M1 Kibor Jan 2026"] = kibor_cal_for(1, 2026)
-        df.at[idx, "M2 Kibor Feb 2026"] = kibor_cal_for(2, 2026)
-        df.at[idx, "M3 Kibor Mar 2026"] = kibor_cal_for(3, 2026)
+        selected_year = g.REPORT_PERIOD["year"]
+        months_numeric = []
+        
+        if g.REPORT_PERIOD["quarter"] == 'Q1':
+            months_numeric = [1, 2, 3]
+        elif g.REPORT_PERIOD["quarter"] == 'Q2':
+            months_numeric = [4, 5, 6]
+        elif g.REPORT_PERIOD["quarter"] == 'Q3':
+            months_numeric = [7, 8, 9]
+        elif g.REPORT_PERIOD["quarter"] == 'Q4':
+            months_numeric = [10, 11, 12]
+
+        selected_m1, selected_m2, selected_m3 = months_numeric
+
+        df.at[idx, "M1 Kibor"] = kibor_cal_for(selected_m1, selected_year)
+        df.at[idx, "M2 Kibor"] = kibor_cal_for(selected_m2, selected_year)
+        df.at[idx, "M3 Kibor"] = kibor_cal_for(selected_m3, selected_year)
 
     try:
         df.to_excel(destination_path, index=False, engine="openpyxl")
@@ -530,7 +598,6 @@ def fetch_yearly_kibor(request):
         return JsonResponse({'running': False, 'error': str(e), 'log': []}, status=500)
 
 
-# Cached internal calculation methods
 _kibor_df = None
 
 def _load_kibor_data():
@@ -538,7 +605,13 @@ def _load_kibor_data():
     if _kibor_df is not None:
         return _kibor_df
     
-    KIBOR_CSV = "/home/aamir/Aamir-drive/aak-drive/Python-Project/static/data/kibor_summary.csv"
+    KIBOR_CSV = "data/kibor_summary/kibor_summary.csv"
+  
+    if not os.path.exists(KIBOR_CSV):
+        raise FileNotFoundError(
+            "KIBOR summary file is missing. Please generate or upload the KIBOR summary first."
+        )
+
     df = pd.read_csv(KIBOR_CSV)
     df["1Year"] = pd.to_numeric(df["1Year"], errors="coerce")
     

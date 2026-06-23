@@ -12,8 +12,7 @@ urlpatterns = [
     path('panel/kibor/', views.panel_kibor, name='panel_kibor'),
     path('panel/add-yearly-kibor/', views.panel_add_yearly_kibor, name='panel_add_yearly_kibor'),
     path('panel/fetch-obi/', views.panel_fetch_obi, name='panel_fetch_obi'),
-
-
+    path('api/set-period/', views.set_period, name='set_period'),
 
     # Core Action Routes
     path('view-initial/', views.view_initial, name='view_initial'),
@@ -29,5 +28,7 @@ urlpatterns = [
     path('scrape/status/', views.scrape_status_route, name='scrape_status'),
     path('scrape/files/', views.scrape_files_route, name='scrape_files'),
     path('fetch-kibor/', views.fetch_kibor, name='fetch_kibor'),
+    path('subsidy-claim/', views.add_subsidy_claim, name='add_subsidy_claim'),
+    
     path('fetch-yearly-kibor/', views.fetch_yearly_kibor, name='fetch_yearly_kibor'),
 ]

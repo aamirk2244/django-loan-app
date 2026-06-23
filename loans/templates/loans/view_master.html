@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
     <link rel="stylesheet" href="{% static 'vendor/datatables/dataTables.bootstrap5.min.css' %}">
     <link rel="stylesheet" href="{% static 'css/app.css' %}">
+
   </head>
   <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
@@ -80,6 +81,13 @@
     <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
     <script src="{% static 'vendor/datatables/dataTables.min.js' %}"></script>
     <script src="{% static 'vendor/datatables/dataTables.bootstrap5.min.js' %}"></script>
+
+
+    <script src="{% static 'vendor/datatables/jszip.min.js' %}"></script>
+
+    <script src="{% static 'vendor/datatables/dataTables.buttons.min.js' %}"></script>
+
+    <script src="{% static 'vendor/datatables/buttons.html5.min.js' %}"></script>
     
     <script>
       $(document).ready(function() {
@@ -89,7 +97,16 @@
             "pageLength": 10,
             "ordering": true,
             "info": true,
-            "searching": true
+            "searching": true,
+            "dom": 'Bfrtip',   
+            "buttons": [
+              {
+                extend: 'excelHtml5',
+                text: 'Download Excel',
+                title: 'Exported_Data',
+                className: 'btn btn-success'
+              }
+            ]
           });
         }
       });
